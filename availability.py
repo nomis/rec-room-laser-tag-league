@@ -58,7 +58,12 @@ class TeamAvailability:
 	def available_at(self, ts):
 		available = collections.Counter(Availability.__members__.values())
 		for player in self.players.values():
-			available[player.available_at(ts)] += 1
+			player_availability = player.available_at(ts)
+			# Count them in all availability levels up to the best one they have
+			# (i.e. if they're a Yes, also count them as a Maybe)
+			for availability in Availability.__members__.values():
+				if availability.value <= player_availability.value:
+					available[availability] += 1
 
 		# Find the best availability status that has the required number of players
 		result = (Availability.No, 0)
@@ -135,7 +140,7 @@ class LeagueAvailability:
 
 		for name, team in self.teams.items():
 			(availability, players) = team.available_at(ts)
-			if availability > Availability.No:
+			if availability.value > Availability.No.value:
 				teams[name] = (players, availability)
 
 		return teams
