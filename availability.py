@@ -176,11 +176,12 @@ class LeagueAvailability:
 
 
 def generate_output(args, output=sys.stdout, time_zones={
-			"UTC": (pytz.timezone("UTC"), "%d/%m"),
-			"CET/CEST": (pytz.timezone("Europe/Paris"), "%d/%m"),
-			"Pacific": (pytz.timezone("US/Pacific"), "%m/%d"),
-			"Mountain": (pytz.timezone("US/Mountain"), "%m/%d"),
-			"Eastern": (pytz.timezone("US/Eastern"), "%m/%d"),
+			"GMT/BST (UK)": (pytz.timezone("Europe/London"), "%d/%m"),
+			"CET/CEST (Western Europe)": (pytz.timezone("Europe/Paris"), "%d/%m"),
+			"Pacific (US)": (pytz.timezone("US/Pacific"), "%m/%d"),
+			"Mountain (US)": (pytz.timezone("US/Mountain"), "%m/%d"),
+			"Central (US)": (pytz.timezone("US/Central"), "%m/%d"),
+			"Eastern (US)": (pytz.timezone("US/Eastern"), "%m/%d"),
 		}):
 	league = LeagueAvailability(args.filename)
 
