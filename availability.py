@@ -176,8 +176,8 @@ class LeagueAvailability:
 
 
 def generate_output(args, output=sys.stdout, time_zones={
-			"GMT/BST (UK)": (pytz.timezone("Europe/London"), "%d/%m"),
-			"CET/CEST (Western Europe)": (pytz.timezone("Europe/Paris"), "%d/%m"),
+			"WET/WEST (Western Europe)": (pytz.timezone("Europe/London"), "%d/%m"),
+			"CET/CEST (Central Europe)": (pytz.timezone("Europe/Paris"), "%d/%m"),
 			"Pacific (US)": (pytz.timezone("US/Pacific"), "%m/%d"),
 			"Mountain (US)": (pytz.timezone("US/Mountain"), "%m/%d"),
 			"Central (US)": (pytz.timezone("US/Central"), "%m/%d"),
