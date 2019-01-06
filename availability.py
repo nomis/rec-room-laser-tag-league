@@ -35,6 +35,7 @@ class Availability(enum.Enum):
 	Yes = 3
 
 weekdays = dict(zip(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], range(1, 8)))
+weekdays_inv = {v: k for k, v in weekdays.items()}
 
 
 """Cache time zone conversions for a given datetime"""
@@ -236,11 +237,14 @@ def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_m
 		dt_from_tz = dt_from.astimezone(time_zone)
 		dt_to_tz = dt_to.astimezone(time_zone)
 
-		from_str = dt_from_tz.strftime(f"%a {date_format} %H:%M")
+		from_day = weekdays_inv[dt_from_tz.isoweekday()][0:2]
+		to_day = weekdays_inv[dt_to_tz.isoweekday()][0:2]
+
+		from_str = from_day + dt_from_tz.strftime(f" {date_format} %H:%M")
 		if dt_from_tz.date() == dt_to_tz.date():
 			to_str = dt_to_tz.strftime(f"%H:%M")
 		else:
-			to_str = dt_to_tz.strftime(f"%a {date_format} %H:%M")
+			to_str = to_day + dt_to_tz.strftime(f" {date_format} %H:%M")
 
 		row[zone_name] = f"{from_str} to {to_str}"
 
