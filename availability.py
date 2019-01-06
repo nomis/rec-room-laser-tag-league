@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 import argparse
 import collections
 import csv
@@ -77,10 +77,10 @@ class PlayerAvailability:
 			player_ts = ts.astimezone(period.time_zone)
 
 			if period.date_from:
-				if date(player_ts.year, player_ts.month, player_ts.day) < date(period.date_from[0], period.date_from[1], period.date_from[2]):
+				if (player_ts.year, player_ts.month, player_ts.day) < period.date_from:
 					continue
 			if period.date_to:
-				if date(period.date_to[0], period.date_to[1], period.date_to[2]) > date(player_ts.year, player_ts.month, player_ts.day):
+				if (player_ts.year, player_ts.month, player_ts.day) > period.date_to:
 					continue
 
 			if player_ts.isoweekday() != period.day:
