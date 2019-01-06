@@ -124,6 +124,10 @@ class LeagueAvailability:
 				elif header:
 					(team, player, time_zone, day, time_from, time_to, available) = row
 
+					if not list(filter(None, row)):
+						# Skip blank rows
+						continue
+
 					if team == "":
 						team = last_team
 					if player == "":
