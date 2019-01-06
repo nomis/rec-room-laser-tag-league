@@ -147,10 +147,27 @@ class LeagueAvailability:
 						raise Exception(f"Invalid player on line {line}")
 					if time_zone not in pytz.all_timezones_set:
 						raise Exception(f"Invalid time zone on line {line}: {time_zone}")
-					if day not in weekdays.keys():
-						raise Exception(f"Invalid day on line {line}: {day}")
 
 					(last_team, last_player, last_time_zone, last_day, last_available) = (team, player, time_zone, day, available)
+
+					days = set()
+					for weekday in day.split(","):
+						if "-" in weekday:
+							weekday = weekday.split("-")
+							if len(weekday) != 2 or weekday[0] not in weekdays.keys() or weekday[1] not in weekdays.keys():
+								raise Exception(f"Invalid day on line {line}: {day}")
+							day = weekday[0]
+							days.add(day)
+							while day != weekday[1]:
+								next = weekdays[day] + 1
+								if next > 7:
+									next = 1
+								day = weekdays_inv[next]
+								days.add(day)
+						elif day not in weekdays.keys():
+							raise Exception(f"Invalid day on line {line}: {day}")
+						else:
+							days.add(weekday)
 
 					match = re_time.fullmatch(time_from)
 					if not match:
@@ -168,7 +185,8 @@ class LeagueAvailability:
 						raise Exception(f"Invalid availability on line {line}: {available}")
 					available = Availability.__members__[available]
 
-					self.teams[team].add(player, time_zone, day, time_from, time_to, available)
+					for day in days:
+						self.teams[team].add(player, time_zone, day, time_from, time_to, available)
 
 			if not header:
 				raise Exception("Unable to find header")
