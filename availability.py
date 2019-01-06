@@ -28,6 +28,7 @@ import sys
 AvailablePeriod = collections.namedtuple('AvailablePeriod', ['time_zone', 'day', 'time_from', 'time_to', 'available'])
 
 re_time = re.compile(r"([0-1][0-9]|2[0-3]):([0-5][0-9])")
+re_username = re.compile(r"(?P<name>.+) (?P<username>\(@[^ ]+\))")
 
 class Availability(enum.Enum):
 	No = 1
@@ -165,7 +166,15 @@ class LeagueAvailability:
 			if not header:
 				raise Exception("Unable to find header")
 
-	def available_at(self, ts, players_required):
+		self.players = {}
+		for name, team in self.teams.items():
+			for name2, player in team.players.items():
+				match = re_username.fullmatch(name2)
+				if match:
+					name2 = match.groupdict()["name"]
+				self.players[f"{name}/{name2}"] = player
+
+	def teams_available_at(self, ts, players_required):
 		teams = {}
 
 		for name, team in self.teams.items():
@@ -174,6 +183,16 @@ class LeagueAvailability:
 				teams[name] = (players, availability)
 
 		return teams
+
+	def players_available_at(self, ts):
+		players = set()
+
+		for name, player in self.players.items():
+			availability = player.available_at(ts)
+			if availability.value > Availability.No.value:
+				players.add((name, availability))
+
+		return players
 
 
 def generate_output(args, output=sys.stdout, time_zones={
@@ -190,49 +209,72 @@ def generate_output(args, output=sys.stdout, time_zones={
 	end = now + timedelta(weeks=args.weeks)
 	dt = now
 
-	last_teams = {}
-	team_player_minimums = {}
-	team_player_maximums = {}
-	last_from = None
+	if args.detail:
+		last_players = set()
+		last_from = None
 
-	rows = list(time_zones.keys()) + list(sorted(league.teams.keys()))
-	csvfile = csv.DictWriter(output, rows, quoting=csv.QUOTE_ALL)
-	csvfile.writeheader()
+		rows = list(time_zones.keys()) + list(sorted(league.players.keys()))
+		csvfile = csv.DictWriter(output, rows, quoting=csv.QUOTE_ALL)
+		csvfile.writeheader()
 
-	while dt < end:
-		teams = league.available_at(Timestamp(dt), args.players)
-		if __summarise_teams(teams) != __summarise_teams(last_teams):
-			if last_teams:
-				__output_team_list(csvfile, time_zones, last_from, dt, last_teams, team_player_minimums, team_player_maximums)
-			last_from = dt
-			team_player_minimums = {}
-			team_player_maximums = {}
+		while dt < end:
+			players = league.players_available_at(Timestamp(dt))
+			if players != last_players:
+				if last_players:
+					__output_player_list(csvfile, time_zones, last_from, dt, last_players)
+				last_from = dt
 
-		if teams and not last_teams:
-			last_from = dt
-			team_player_minimums = {}
-			team_player_maximums = {}
-		last_teams = teams
-		for (team, (players, availability)) in teams.items():
-			if team_player_minimums.get(team, sys.maxsize) > players:
-				team_player_minimums[team] = players
-			if team_player_maximums.get(team, 0) < players:
-				team_player_maximums[team] = players
+			if players and not last_players:
+				last_from = dt
+			last_players = players
 
-		dt += timedelta(minutes=1)
+			dt += timedelta(minutes=1)
 
-		if dt == end:
-			if last_teams:
-				__output_team_list(csvfile, time_zones, last_from, dt, last_teams, team_player_minimums, team_player_maximums)
+			if dt == end:
+				if last_players:
+					__output_player_list(csvfile, time_zones, last_from, dt, last_players)
+	else:
+		last_teams = {}
+		team_player_minimums = {}
+		team_player_maximums = {}
+		last_from = None
+
+		rows = list(time_zones.keys()) + list(sorted(league.teams.keys()))
+		csvfile = csv.DictWriter(output, rows, quoting=csv.QUOTE_ALL)
+		csvfile.writeheader()
+
+		while dt < end:
+			teams = league.teams_available_at(Timestamp(dt), args.players)
+			if __summarise_teams(teams) != __summarise_teams(last_teams):
+				if last_teams:
+					__output_team_list(csvfile, time_zones, last_from, dt, last_teams, team_player_minimums, team_player_maximums)
+				last_from = dt
+				team_player_minimums = {}
+				team_player_maximums = {}
+
+			if teams and not last_teams:
+				last_from = dt
+				team_player_minimums = {}
+				team_player_maximums = {}
+			last_teams = teams
+			for (team, (players, availability)) in teams.items():
+				if team_player_minimums.get(team, sys.maxsize) > players:
+					team_player_minimums[team] = players
+				if team_player_maximums.get(team, 0) < players:
+					team_player_maximums[team] = players
+
+			dt += timedelta(minutes=1)
+
+			if dt == end:
+				if last_teams:
+					__output_team_list(csvfile, time_zones, last_from, dt, last_teams, team_player_minimums, team_player_maximums)
 
 
 def __summarise_teams(teams):
 	return set([(team, availability) for (team, (players, availability)) in teams.items()])
 
 
-def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_minimums, team_player_maximums):
-	row = {}
-
+def __make_from_to(row, time_zones, dt_from, dt_to):
 	for (zone_name, (time_zone, date_format)) in time_zones.items():
 		dt_from_tz = dt_from.astimezone(time_zone)
 		dt_to_tz = dt_to.astimezone(time_zone)
@@ -248,6 +290,12 @@ def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_m
 
 		row[zone_name] = f"{from_str} to {to_str}"
 
+
+def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_minimums, team_player_maximums):
+	row = {}
+
+	__make_from_to(row, time_zones, dt_from, dt_to)
+
 	for (team, (players, availability)) in teams.items():
 		if team_player_minimums[team] == team_player_maximums[team]:
 			team_str = f"{players}"
@@ -262,10 +310,25 @@ def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_m
 	csvfile.writerow(row)
 
 
+def __output_player_list(csvfile, time_zones, dt_from, dt_to, players):
+	row = {}
+
+	__make_from_to(row, time_zones, dt_from, dt_to)
+
+	for (player, availability) in players:
+		if availability == availability.Yes:
+			row[player] = f"X"
+		else:
+			row[player] = f"?"
+
+	csvfile.writerow(row)
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Process availability")
 	parser.add_argument("filename", metavar="FILENAME", type=str, help="CSV file containing availability data")
 	parser.add_argument("-w", "--weeks", type=int, default=4, help="Number of weeks to output")
 	parser.add_argument("-p", "--players", type=int, default=4, help="Minimum number of players from each team")
+	parser.add_argument("-d", "--detail", action="store_true", help="Detailed player view (instead of per team)")
 	args = parser.parse_args()
 	generate_output(args)
