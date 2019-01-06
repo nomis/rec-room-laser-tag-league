@@ -75,6 +75,9 @@ class PlayerAvailability:
 				continue
 			if period.available.value > available.value:
 				available = period.available
+			if available == Availability.Yes:
+				# Skip remaining periods because they can't be any better
+				break
 
 		return available
 
