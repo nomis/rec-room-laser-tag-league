@@ -37,6 +37,13 @@ class Availability(enum.Enum):
 
 weekdays = dict(zip(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], range(1, 8)))
 weekdays_inv = {v: k for k, v in weekdays.items()}
+next_day = {}
+
+for day in weekdays:
+	next = weekdays[day] + 1
+	if next > 7:
+		next = 1
+	next_day[day] = weekdays_inv[next]
 
 
 """Cache time zone conversions for a given datetime"""
@@ -56,7 +63,11 @@ class PlayerAvailability:
 		self.periods = set()
 
 	def add(self, time_zone, day, time_from, time_to, available):
-		self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, time_to, available))
+		if time_to < time_from:
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, (24, 00), available))
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[next_day[day]], (00, 00), time_to, available))
+		else:
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, time_to, available))
 
 	def available_at(self, ts):
 		available = Availability.No
@@ -159,10 +170,7 @@ class LeagueAvailability:
 							day = weekday[0]
 							days.add(day)
 							while day != weekday[1]:
-								next = weekdays[day] + 1
-								if next > 7:
-									next = 1
-								day = weekdays_inv[next]
+								day = next_day[day]
 								days.add(day)
 						elif day not in weekdays.keys():
 							raise Exception(f"Invalid day on line {line}: {day}")
