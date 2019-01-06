@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import argparse
 import collections
 import csv
@@ -25,9 +25,10 @@ import re
 import sys
 
 
-AvailablePeriod = collections.namedtuple('AvailablePeriod', ['time_zone', 'day', 'time_from', 'time_to', 'available'])
+AvailablePeriod = collections.namedtuple('AvailablePeriod', ['time_zone', 'day', 'time_from', 'time_to', 'available', 'date_from', 'date_to'])
 
 re_time = re.compile(r"([0-1][0-9]|2[0-3]):([0-5][0-9])")
+re_date = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
 re_username = re.compile(r"(?P<name>.+) (?P<username>\(@[^ ]+\))")
 
 class Availability(enum.Enum):
@@ -62,20 +63,29 @@ class PlayerAvailability:
 	def __init__(self):
 		self.periods = set()
 
-	def add(self, time_zone, day, time_from, time_to, available):
+	def add(self, time_zone, day, time_from, time_to, available, date_from, date_to):
 		if time_to < time_from:
-			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, (24, 00), available))
-			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[next_day[day]], (00, 00), time_to, available))
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, (24, 00), available, date_from, date_to))
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[next_day[day]], (00, 00), time_to, available, date_from, date_to))
 		else:
-			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, time_to, available))
+			self.periods.add(AvailablePeriod(pytz.timezone(time_zone), weekdays[day], time_from, time_to, available, date_from, date_to))
 
 	def available_at(self, ts):
-		available = Availability.No
+		available = set()
 
 		for period in self.periods:
 			player_ts = ts.astimezone(period.time_zone)
+
+			if period.date_from:
+				if date(player_ts.year, player_ts.month, player_ts.day) < date(period.date_from[0], period.date_from[1], period.date_from[2]):
+					continue
+			if period.date_to:
+				if date(period.date_to[0], period.date_to[1], period.date_to[2]) > date(player_ts.year, player_ts.month, player_ts.day):
+					continue
+
 			if player_ts.isoweekday() != period.day:
 				continue
+
 			if player_ts.hour < period.time_from[0]:
 				continue
 			if player_ts.hour > period.time_to[0]:
@@ -84,21 +94,25 @@ class PlayerAvailability:
 				continue
 			if player_ts.hour == period.time_to[0] and player_ts.minute >= period.time_to[1]:
 				continue
-			if period.available.value > available.value:
-				available = period.available
-			if available == Availability.Yes:
-				# Skip remaining periods because they can't be any better
-				break
 
-		return available
+			available.add(period.available)
+
+		if Availability.No in available:
+			return Availability.No
+		elif Availability.Yes in available:
+			return Availability.Yes
+		elif Availability.Maybe in available:
+			return Availability.Maybe
+		else:
+			return Availability.No
 
 
 class TeamAvailability:
 	def __init__(self):
 		self.players = collections.defaultdict(PlayerAvailability)
 
-	def add(self, player, time_zone, day, time_from, time_to, available):
-		self.players[player].add(time_zone, day, time_from, time_to, available)
+	def add(self, player, *args):
+		self.players[player].add(*args)
 
 	def available_at(self, ts, players_required):
 		available = collections.Counter()
@@ -130,10 +144,10 @@ class LeagueAvailability:
 
 			for row in csv.reader(csvfile):
 				line += 1
-				if row == ["Team", "Player", "Time Zone", "Day", "From", "To", "Available"]:
+				if row == ["Team", "Player", "Time Zone", "Day", "From", "To", "Available", "Date From", "Date To"]:
 					header = True
 				elif header:
-					(team, player, time_zone, day, time_from, time_to, available) = row
+					(team, player, time_zone, day, time_from, time_to, available, date_from, date_to) = row
 
 					if not list(filter(None, row)):
 						# Skip blank rows
@@ -184,7 +198,7 @@ class LeagueAvailability:
 
 					match = re_time.fullmatch(time_to)
 					if not match:
-						raise Exception(f"Invalid from time on line {line}: {time_to}")
+						raise Exception(f"Invalid to time on line {line}: {time_to}")
 					time_to = (int(match.group(1)), int(match.group(2)))
 					if time_to == (00, 00):
 						time_to = (24, 00)
@@ -193,8 +207,24 @@ class LeagueAvailability:
 						raise Exception(f"Invalid availability on line {line}: {available}")
 					available = Availability.__members__[available]
 
+					if date_from != "":
+						match = re_date.fullmatch(date_from)
+						if not match:
+							raise Exception(f"Invalid from date on line {line}: {date_from}")
+						date_from = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+					else:
+						date_from = None
+
+					if date_to != "":
+						match = re_date.fullmatch(date_to)
+						if not match:
+							raise Exception(f"Invalid to date on line {line}: {date_to}")
+						date_to = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+					else:
+						date_to = None
+
 					for day in days:
-						self.teams[team].add(player, time_zone, day, time_from, time_to, available)
+						self.teams[team].add(player, time_zone, day, time_from, time_to, available, date_from, date_to)
 
 			if not header:
 				raise Exception("Unable to find header")
