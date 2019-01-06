@@ -172,7 +172,7 @@ class LeagueAvailability:
 				match = re_username.fullmatch(name2)
 				if match:
 					name2 = match.groupdict()["name"]
-				self.players[f"{name}/{name2}"] = player
+				self.players[f"{name} / {name2}"] = player
 
 	def teams_available_at(self, ts, players_required):
 		teams = {}
