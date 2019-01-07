@@ -260,12 +260,12 @@ class LeagueAvailability:
 
 
 def generate_output(args, output=sys.stdout, time_zones={
-			"WET/WEST (Western Europe)": (pytz.timezone("Europe/London"), "%d/%m"),
-			"CET/CEST (Central Europe)": (pytz.timezone("Europe/Paris"), "%d/%m"),
-			"Pacific (US)": (pytz.timezone("US/Pacific"), "%m/%d"),
-			"Mountain (US)": (pytz.timezone("US/Mountain"), "%m/%d"),
-			"Central (US)": (pytz.timezone("US/Central"), "%m/%d"),
-			"Eastern (US)": (pytz.timezone("US/Eastern"), "%m/%d"),
+			"WET/WEST (Western Europe)": (pytz.timezone("Europe/London"), "%d/%m", "%H:%M"),
+			"CET/CEST (Central Europe)": (pytz.timezone("Europe/Paris"), "%d/%m", "%H:%M"),
+			"Pacific (US)": (pytz.timezone("US/Pacific"), "%m/%d", "%I:%M %p"),
+			"Mountain (US)": (pytz.timezone("US/Mountain"), "%m/%d", "%I:%M %p"),
+			"Central (US)": (pytz.timezone("US/Central"), "%m/%d", "%I:%M %p"),
+			"Eastern (US)": (pytz.timezone("US/Eastern"), "%m/%d", "%I:%M %p"),
 		}):
 	league = LeagueAvailability(args.filename)
 
@@ -339,18 +339,18 @@ def __summarise_teams(teams):
 
 
 def __make_from_to(row, time_zones, dt_from, dt_to):
-	for (zone_name, (time_zone, date_format)) in time_zones.items():
+	for (zone_name, (time_zone, date_format, time_format)) in time_zones.items():
 		dt_from_tz = dt_from.astimezone(time_zone)
 		dt_to_tz = dt_to.astimezone(time_zone)
 
 		from_day = weekdays_inv[dt_from_tz.isoweekday()][0:2]
 		to_day = weekdays_inv[dt_to_tz.isoweekday()][0:2]
 
-		from_str = from_day + dt_from_tz.strftime(f" {date_format} %H:%M")
+		from_str = from_day + dt_from_tz.strftime(f" {date_format} {time_format}")
 		if dt_from_tz.date() == dt_to_tz.date():
-			to_str = dt_to_tz.strftime(f"%H:%M")
+			to_str = dt_to_tz.strftime(f"{time_format}")
 		else:
-			to_str = to_day + dt_to_tz.strftime(f" {date_format} %H:%M")
+			to_str = to_day + dt_to_tz.strftime(f" {date_format} {time_format}")
 
 		row[zone_name] = f"{from_str} to {to_str}"
 
