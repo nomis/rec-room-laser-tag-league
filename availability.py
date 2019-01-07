@@ -116,13 +116,14 @@ class TeamAvailability:
 
 	def available_at(self, ts, players_required):
 		available = collections.Counter()
-		for player in self.players.values():
+		for name, player in self.players.items():
 			player_availability = player.available_at(ts)
+			multiplier = players_required if name == "*" else 1
 			# Count them in all availability levels up to the best one they have
 			# (i.e. if they're a Yes, also count them as a Maybe)
 			for availability in Availability.__members__.values():
 				if availability.value <= player_availability.value:
-					available[availability] += 1
+					available[availability] += multiplier
 
 		# Find the best availability status that has the required number of players
 		result = (0, Availability.No)
