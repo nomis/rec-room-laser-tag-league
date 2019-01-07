@@ -391,7 +391,7 @@ def __output_player_list(csvfile, time_zones, dt_from, dt_to, players):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Process availability")
 	parser.add_argument("filename", metavar="FILENAME", type=str, help="CSV file containing availability data")
-	parser.add_argument("-w", "--weeks", type=int, default=4, help="Number of weeks to output")
+	parser.add_argument("-w", "--weeks", type=int, default=8, help="Number of weeks to output")
 	parser.add_argument("-p", "--players", type=int, default=4, help="Minimum number of players from each team")
 	parser.add_argument("-d", "--detail", action="store_true", help="Detailed player view (instead of per team)")
 	args = parser.parse_args()
