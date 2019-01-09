@@ -132,6 +132,21 @@ class TeamAvailability:
 				result = (available[availability], availability)
 		return result
 
+	def any_available_at(self, ts, players_required):
+		available = collections.Counter()
+		for name, player in self.players.items():
+			player_availability = player.available_at(ts)
+			multiplier = players_required if name == "*" else 1
+			available[player_availability.value] += multiplier
+
+		total = available[Availability.Yes.value] + available[Availability.Maybe.value]
+		if total == 0:
+			return (0, Availability.No)
+
+		if available[Availability.Yes.value] >= players_required or available[Availability.Maybe.value] == 0:
+			return (total, Availability.Yes)
+		return (total, Availability.Maybe)
+
 
 class LeagueAvailability:
 	def __init__(self, filename):
@@ -248,6 +263,16 @@ class LeagueAvailability:
 
 		return teams
 
+	def teams_any_available_at(self, ts, players_required):
+		teams = {}
+
+		for name, team in self.teams.items():
+			(players, availability) = team.any_available_at(ts, players_required)
+			if availability.value > Availability.No.value:
+				teams[name] = (players, availability)
+
+		return teams
+
 	def players_available_at(self, ts):
 		players = set()
 
@@ -277,7 +302,7 @@ def generate_output(args, output=sys.stdout, time_zones={
 		last_players = set()
 		last_from = None
 
-		rows = list(time_zones.keys()) + list(sorted(league.players.keys()))
+		rows = list(time_zones.keys()) + list(sorted(list(league.teams.keys()) + list(league.players.keys())))
 		csvfile = csv.DictWriter(output, rows, quoting=csv.QUOTE_ALL)
 		csvfile.writeheader()
 
@@ -285,7 +310,8 @@ def generate_output(args, output=sys.stdout, time_zones={
 			players = league.players_available_at(Timestamp(dt))
 			if players != last_players:
 				if last_players:
-					__output_player_list(csvfile, time_zones, last_from, dt, last_players)
+					__output_player_list(csvfile, time_zones, last_from, dt, last_players,
+						league.teams_any_available_at(Timestamp(last_from), args.players))
 				last_from = dt
 
 			if players and not last_players:
@@ -296,7 +322,8 @@ def generate_output(args, output=sys.stdout, time_zones={
 
 			if dt == end:
 				if last_players:
-					__output_player_list(csvfile, time_zones, last_from, dt, last_players)
+					__output_player_list(csvfile, time_zones, last_from, dt, last_players,
+						league.teams_any_available_at(Timestamp(last_from), args.players))
 	else:
 		last_teams = {}
 		team_player_minimums = {}
@@ -374,7 +401,7 @@ def __output_team_list(csvfile, time_zones, dt_from, dt_to, teams, team_player_m
 	csvfile.writerow(row)
 
 
-def __output_player_list(csvfile, time_zones, dt_from, dt_to, players):
+def __output_player_list(csvfile, time_zones, dt_from, dt_to, players, teams):
 	row = {}
 
 	__make_from_to(row, time_zones, dt_from, dt_to)
@@ -384,6 +411,12 @@ def __output_player_list(csvfile, time_zones, dt_from, dt_to, players):
 			row[player] = f"X"
 		else:
 			row[player] = f"?"
+
+	for (team, (players, availability)) in teams.items():
+		if availability == availability.Yes:
+			row[team] = f"'{players}"
+		else:
+			row[team] = f"'({players})"
 
 	csvfile.writerow(row)
 
